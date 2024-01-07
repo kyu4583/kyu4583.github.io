@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "D:/OneDrive - 인하대학교/문서/VSCODE"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"iostream": "cpp"
+		}
+	}
+}
