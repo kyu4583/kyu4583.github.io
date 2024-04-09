@@ -141,7 +141,7 @@ public class MemoryMemberRepository implements MemberRepository{
 
     @Override
     public Member findById(Long memberId) {
-
+		return store.get(memberId);
     }
 }
 ```
@@ -179,6 +179,8 @@ public class MemberServiceImpl implements MemberService{
     }
 }
 ```
+
+리포지토리 구현체가 직접 들어가는 모습. 좋은 상황이 아니다.
 
 
 
@@ -241,3 +243,108 @@ JUnit 프레임워크를 사용한 테스트 코드다.
 ## 주문과 할인 도메인 설계
 
 ![image-20240112053927189](../images/2024-01-11-Spring-basic-2/image-20240112053927189.png)
+
+![image-20240312152313723](../images/2024-01-11-Spring-basic-2/image-20240312152313723.png)
+
+위는 주문 도메인이다. 이 도메인은 역할의 협력 관계에 대해서만 그린 거고, 이의 구현까지 그린 게 아래의 그림이다.
+
+![image-20240312152413255](../images/2024-01-11-Spring-basic-2/image-20240312152413255.png)
+
+이렇게 구현할 수 있다. 역할만 제대로 정의돼있으면 구현체는 얼마든지 다른걸 갖고와서 조립할 수 있다.
+
+![image-20240312152734610](../images/2024-01-11-Spring-basic-2/image-20240312152734610.png)
+
+한 부분만 떼서 보면 위와 같이 인터페이스가 인터페이스를 가져온다기보단, 구현체가 인터페이스를 직접 가져오는 형식을 띄게 됨.
+
+
+
+## 주문과 할인 도메인 구현
+
+`DiscountPolicy.java`
+
+```java
+public interface DiscountPolicy {
+    // @return 할인 대상 금액
+    int discount(Member member, int price);
+}
+```
+
+`FixDiscountPolicy.java`
+
+```java
+public class FixDiscountPolicy implements DiscountPolicy{
+
+    private int discountFixAmount = 1000;
+
+    @Override
+    public int discount(Member member, int price) {
+        if (member.getGrade() == Grade.VIP) {
+            return discountFixAmount;
+        } else {
+            return 0;
+        }
+    }
+}
+
+```
+
+`Order.java`
+
+```java
+public class Order {
+    private Long memberId;
+    private String itemName;
+    private int itemPrice;
+    private int discountPrice;
+    ...
+}
+```
+
+`OrderService.java`
+
+```java
+public interface OrderService {
+    Order createOrder(Long memberId, String itemName, int itemPrice);
+}
+```
+
+`OrderServiceImpl.java`
+
+```java
+public class OrderServiceImpl implements OrderService {
+    private final MemberRepository memberRepository = new MemoryMemberRepository();
+    private final DiscountPolicy discountPolicy = new FixDiscountPolicy();
+
+    @Override
+    public Order createOrder(Long memberId, String itemName, int itemPrice) {
+        Member member = memberRepository.findById(memberId);
+        int discountPrice = discountPolicy.discount(member, itemPrice);
+
+        return new Order(memberId, itemName, itemPrice, discountPrice);
+    }
+}
+```
+
+주문 서비스 구현체에서 할인 정책 구현체를 가져와 쓰고있다. 할인 정책 구현체는 다른 구현체로 대체될 수 있다.
+
+
+
+## 테스트
+
+```java
+public class OrderServiceTest {
+    MemberService memberService = new MemberServiceImpl();
+    OrderService orderService = new OrderServiceImpl();
+
+    @Test
+    void createOrder() {
+        Long memberId = 1L;
+        Member member = new Member(memberId, "memberA", Grade.VIP);
+        memberService.join(member);
+
+        Order order = orderService.createOrder(memberId, "itemA", 10000);
+        assertThat(order.getDiscountPrice()).isEqualTo(1000);
+    }
+}
+```
+
